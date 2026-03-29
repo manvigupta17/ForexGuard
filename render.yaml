@@ -2,9 +2,9 @@ services:
   - type: web
     name: forexguard
     runtime: python
-    pythonVersion: "3.11.9"
     buildCommand: |
-      pip install torch==2.3.0+cpu --index-url https://download.pytorch.org/whl/cpu
+      pip install --upgrade pip
+      pip install torch --index-url https://download.pytorch.org/whl/cpu
       pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port 10000
     envVars:
