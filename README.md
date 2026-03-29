@@ -1,6 +1,6 @@
 # ForexGuard — Real-Time Forex Trader Anomaly Detection
 
-> **AI/ML Internship Assessment Submission**
+
 > Production-grade, unsupervised anomaly detection engine for a forex brokerage — featuring a multi-scale Transformer autoencoder, Borda count ensemble, SHAP explainability, LLM compliance narratives, and a live WebSocket dashboard.
 
 ---
