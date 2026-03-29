@@ -1,0 +1,20 @@
+{
+  "CRITICAL": 0.7,
+  "HIGH": 0.5,
+  "MEDIUM": 0.3,
+  "method": "IQR_tukey_fence",
+  "basis": "calibrated_score",
+  "q25": 0.0604,
+  "q50": 0.1071,
+  "q75": 0.2137,
+  "iqr": 0.1532,
+  "z_critical": 3.94,
+  "z_high": 2.49,
+  "score_mean": 0.1573,
+  "score_std": 0.1377,
+  "n_scores": 500,
+  "n_critical": 3,
+  "n_high": 10,
+  "n_medium": 63,
+  "n_low": 424
+}

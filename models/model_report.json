@@ -1,0 +1,109 @@
+{
+  "timestamp": "2026-03-29T17:52:46.089614",
+  "version": "v4",
+  "paper_reference": "Bao et al. (2025) arXiv 2504.00287 \u2014 Staged Sliding Window Transformer",
+  "continuous_retraining_strategy": {
+    "description": "Model retraining triggered weekly if data drift detected.",
+    "trigger_conditions": [
+      "Population mean volume shifts > 2 sigma from training baseline",
+      "Anomaly rate drops below 5% or rises above 40% (distribution drift)",
+      "New anomaly type introduced in labelled data",
+      "Calendar event: end of quarter (fraud spikes seasonally)"
+    ],
+    "implementation": "ADWIN drift detector on rolling feature means. On trigger: re-run Phase 2 feature engineering + Phase 3 training. Deploy new model if val AUC improves by > 0.02.",
+    "cadence": "Weekly check, monthly full retrain minimum"
+  },
+  "streaming_pipeline_architecture": {
+    "description": "Batch pipeline now \u2192 streaming pipeline extension path.",
+    "current": "Batch: Phase 1 data \u2192 Phase 2 features \u2192 Phase 3 models \u2192 Phase 4 API",
+    "streaming_extension": {
+      "ingestion": "Kafka topic: forex.events (login, trade, deposit per message)",
+      "processing": "Faust/Kafka Streams: sliding window aggregation per user_id",
+      "feature_update": "Per-event feature vector update in Redis (user state store)",
+      "scoring": "Phase 4 FastAPI /score called per event batch (100ms latency target)",
+      "alerting": "Scores above threshold pushed to kafka topic: forex.alerts",
+      "monitoring": "Prometheus + Grafana for latency, drift, alert rate dashboards"
+    },
+    "note": "Full Kafka implementation is Phase 4. This documents the design intent."
+  },
+  "improvements": [
+    "Staged Sliding Window Transformer (inspired by Bao et al. 2025)",
+    "Multi-scale daily-aggregated sequences (7/14/30-day stages)",
+    "Entropy-weighted self-attention (anomaly-amplified)",
+    "Unsupervised autoencoder (reconstruction error = anomaly score)",
+    "Sinusoidal positional encoding per stage",
+    "Extended hyperparameter sweep (IF contamination + n_estimators, Transformer hidden_dim)",
+    "Independent LOF contamination sweep (no longer borrowed from IF)",
+    "Rank-fusion (Borda count) ensemble + optional Bayesian weighting",
+    "Platt scaling calibration \u2192 interpretable probabilities",
+    "Daily aggregated features (not modulated static vectors)",
+    "Mean-fill padding + attention mask (no false anomaly from zero-fill)",
+    "Temporal train/val split (no future-data leakage)",
+    "EXPL-01: Unified SHAP across models",
+    "EXPL-02: LLM-generated compliance risk summaries (Groq API \u2014 free tier)",
+    "Transformer saved with config + factory loader",
+    "Proper recon_error_per_feat fallback using SHAP",
+    "Per-epoch MLflow logging (val_loss time series)",
+    "Derived statistical features (moving_avg_7d/30d, std_7d, ratio_short_long, z_score, delta)",
+    "Sliding window stride=1 training augmentation",
+    "Conditional model triggering \u2014 IF/LOF first, Transformer only for flagged users",
+    "Window-level 7-day rolling anomaly score (recent_spike_flag)",
+    "Continuous retraining strategy documented",
+    "Batch\u2192streaming pipeline architecture documented"
+  ],
+  "models": {
+    "isolation_forest": {
+      "best_contamination": 0.15,
+      "best_n_estimators": 200,
+      "val_auc": 0.7628,
+      "val_ap": 0.517
+    },
+    "local_outlier_factor": {
+      "best_n_neighbors": 20,
+      "best_contamination": 0.15,
+      "val_auc": 0.7253,
+      "val_ap": 0.4407
+    },
+    "staged_transformer": {
+      "best_hidden_dim": 64,
+      "n_heads": 4,
+      "n_layers": 1,
+      "stage_windows_days": [
+        7,
+        14,
+        30
+      ],
+      "attention": "entropy_weighted_sinusoidal_PE",
+      "training": "unsupervised_autoencoder",
+      "val_auc": 0.6435,
+      "val_ap": 0.4433
+    },
+    "ensemble": {
+      "method": "rank_fusion_borda_count",
+      "bayesian_refine": true,
+      "calibration": "platt_scaling",
+      "val_auc": 0.766,
+      "val_ap": 0.5301,
+      "best_threshold": 0.2982,
+      "precision": 0.575,
+      "recall": 0.3407,
+      "f1": 0.4279,
+      "tp": 46,
+      "fp": 34,
+      "fn": 89,
+      "tn": 331
+    }
+  },
+  "alert_tiers": {
+    "LOW": 449,
+    "MEDIUM": 38,
+    "HIGH": 10,
+    "CRITICAL": 3
+  },
+  "tier_thresholds": {
+    "CRITICAL": 0.7,
+    "HIGH": 0.5,
+    "MEDIUM": 0.35
+  },
+  "llm_summaries_generated": 13
+}

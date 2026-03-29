@@ -1,0 +1,28 @@
+{
+  "input_dim": 9,
+  "d_model": 64,
+  "n_heads": 4,
+  "ff_dim": 128,
+  "n_layers": 1,
+  "dropout": 0.1,
+  "stage_windows": [
+    7,
+    14,
+    30
+  ],
+  "daily_feats": [
+    "daily_trade_count",
+    "daily_volume",
+    "daily_pnl",
+    "daily_deposit_amt",
+    "daily_withdrawal_amt",
+    "daily_login_count",
+    "daily_failed_login_count",
+    "daily_unique_ips",
+    "daily_session_count"
+  ],
+  "val_auc": 0.6435,
+  "val_ap": 0.4433,
+  "threshold": 3.557516,
+  "paper_ref": "Bao et al. arXiv 2504.00287, adapted for unsupervised"
+}

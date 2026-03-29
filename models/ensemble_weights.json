@@ -1,0 +1,15 @@
+{
+  "method": "rank_fusion_borda",
+  "models": [
+    "isolation_forest",
+    "local_outlier_factor",
+    "staged_transformer"
+  ],
+  "if_auc": 0.7628,
+  "lof_auc": 0.7253,
+  "trans_auc": 0.6435,
+  "ensemble_auc": 0.766,
+  "ensemble_ap": 0.5301,
+  "best_threshold": 0.2982,
+  "bayesian_used": true
+}
