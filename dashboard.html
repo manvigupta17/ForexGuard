@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ForexGuard — Real-Time Anomaly Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg:#080c14; --bg2:#0d1520; --bg3:#111d2e; --border:#1a2d45;
+    --accent:#00d4ff; --accent2:#ff6b35;
+    --critical:#ff3b5c; --high:#ff8c42; --medium:#ffd166; --low:#06d6a0;
+    --text:#e8f4fd; --text2:#7a9bbf;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; min-height:100vh; overflow-x:hidden; }
+
+  body::before {
+    content:''; position:fixed; inset:0;
+    background-image: linear-gradient(rgba(0,212,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,0.03) 1px,transparent 1px);
+    background-size:40px 40px; pointer-events:none; z-index:0;
+  }
+
+  header {
+    position:sticky; top:0; z-index:100;
+    background:rgba(8,12,20,0.95); backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--border);
+    padding:0 32px; display:flex; align-items:center; justify-content:space-between; height:64px;
+  }
+  .logo { font-family:'Space Mono',monospace; font-size:18px; font-weight:700; letter-spacing:2px; color:var(--accent); display:flex; align-items:center; gap:10px; }
+  .logo-dot { width:8px; height:8px; border-radius:50%; background:var(--accent); animation:pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(1.4)} }
+
+  .header-right { display:flex; align-items:center; gap:20px; font-size:13px; color:var(--text2); font-family:'Space Mono',monospace; }
+  .ws-status { display:flex; align-items:center; gap:6px; font-size:12px; }
+  .ws-dot { width:8px; height:8px; border-radius:50%; background:var(--critical); transition:background 0.3s; }
+  .ws-dot.connected { background:var(--low); animation:pulse 1.5s infinite; }
+  .ws-dot.connecting { background:var(--medium); animation:pulse 0.8s infinite; }
+
+  .btn-refresh { background:linear-gradient(135deg,var(--accent),#0088ff); border:none; border-radius:6px; padding:8px 18px; color:#000; font-weight:600; font-family:'DM Sans',sans-serif; font-size:13px; cursor:pointer; transition:all 0.2s; }
+  .btn-refresh:hover { transform:translateY(-1px); box-shadow:0 4px 20px rgba(0,212,255,0.4); }
+
+  main { position:relative; z-index:1; max-width:1400px; margin:0 auto; padding:28px 24px; display:flex; flex-direction:column; gap:24px; }
+
+  .stats-row { display:grid; grid-template-columns:repeat(6,1fr); gap:14px; }
+  .stat-card { background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:18px 16px; position:relative; overflow:hidden; transition:transform 0.2s,border-color 0.2s; }
+  .stat-card:hover { transform:translateY(-2px); border-color:var(--accent); }
+  .stat-card::after { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--card-color,var(--accent)); }
+  .stat-card.flash { animation:cardFlash 0.6s ease; }
+  @keyframes cardFlash { 0%,100%{border-color:var(--border)} 50%{border-color:var(--card-color,var(--accent));box-shadow:0 0 20px rgba(0,212,255,0.3)} }
+  .stat-label { font-size:11px; color:var(--text2); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
+  .stat-value { font-family:'Space Mono',monospace; font-size:28px; font-weight:700; color:var(--card-color,var(--accent)); line-height:1; transition:color 0.3s; }
+  .stat-sub { font-size:11px; color:var(--text2); margin-top:4px; }
+
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  .grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; }
+  .grid-13 { display:grid; grid-template-columns:1fr 2fr; gap:20px; }
+  .grid-31 { display:grid; grid-template-columns:2fr 1fr; gap:20px; }
+
+  .panel { background:var(--bg2); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+  .panel-header { padding:16px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+  .panel-title { font-family:'Space Mono',monospace; font-size:12px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:var(--text2); display:flex; align-items:center; gap:8px; }
+  .panel-title span { color:var(--accent); }
+  .panel-body { padding:20px; }
+
+  /* Real-time alert feed */
+  .rt-feed { display:flex; flex-direction:column; gap:6px; max-height:320px; overflow-y:auto; }
+  .rt-item { display:flex; align-items:center; gap:10px; padding:10px 12px; background:var(--bg3); border-radius:8px; border-left:3px solid var(--item-color,var(--text2)); animation:slideIn 0.3s ease; }
+  @keyframes slideIn { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:none} }
+  .rt-tier { font-family:'Space Mono',monospace; font-size:9px; font-weight:700; padding:3px 7px; border-radius:4px; background:var(--item-color); color:#000; white-space:nowrap; flex-shrink:0; }
+  .rt-uid { font-family:'Space Mono',monospace; font-size:13px; font-weight:700; color:var(--text); flex-shrink:0; min-width:56px; }
+  .rt-score { font-family:'Space Mono',monospace; font-size:12px; color:var(--item-color); flex-shrink:0; }
+  .rt-feature { font-size:11px; color:var(--text2); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .rt-trigger { font-size:10px; color:var(--accent); font-family:'Space Mono',monospace; background:rgba(0,212,255,0.1); padding:2px 6px; border-radius:3px; flex-shrink:0; }
+  .rt-llm { font-size:11px; color:var(--text); line-height:1.5; padding:6px 8px; background:rgba(0,212,255,0.05); border-left:2px solid var(--accent); border-radius:0 4px 4px 0; margin-top:4px; cursor:pointer; }
+  .rt-empty { color:var(--text2); font-size:13px; text-align:center; padding:24px; }
+
+  /* Alert list */
+  .alert-list { display:flex; flex-direction:column; gap:8px; }
+  .alert-item { background:var(--bg3); border:1px solid var(--border); border-left:3px solid var(--item-color,var(--text2)); border-radius:8px; padding:12px 14px; display:flex; align-items:center; gap:12px; transition:background 0.15s; cursor:pointer; }
+  .alert-item:hover { background:rgba(0,212,255,0.04); }
+  .alert-tier-badge { font-family:'Space Mono',monospace; font-size:9px; font-weight:700; letter-spacing:1px; padding:3px 7px; border-radius:4px; background:var(--item-color); color:#000; white-space:nowrap; flex-shrink:0; }
+  .alert-uid { font-family:'Space Mono',monospace; font-size:13px; font-weight:700; color:var(--text); flex-shrink:0; width:56px; }
+  .alert-score-bar { flex:1; height:4px; background:var(--border); border-radius:2px; overflow:hidden; }
+  .alert-score-fill { height:100%; border-radius:2px; background:linear-gradient(90deg,var(--item-color),var(--accent)); transition:width 0.8s cubic-bezier(0.4,0,0.2,1); }
+  .alert-score-val { font-family:'Space Mono',monospace; font-size:12px; color:var(--item-color); flex-shrink:0; }
+  .alert-shap { font-size:11px; color:var(--text2); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .live-badge { font-size:9px; color:var(--low); font-family:'Space Mono',monospace; border:1px solid var(--low); border-radius:3px; padding:1px 5px; flex-shrink:0; }
+
+  /* Charts */
+  .chart-wrap { position:relative; }
+  .chart-wrap canvas { max-width:100%; }
+
+  /* Model bars */
+  .model-row { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--border); }
+  .model-row:last-child { border-bottom:none; }
+  .model-name { font-size:13px; color:var(--text2); width:200px; flex-shrink:0; }
+  .model-bar-wrap { flex:1; height:6px; background:var(--border); border-radius:3px; overflow:hidden; }
+  .model-bar-fill { height:100%; border-radius:3px; background:linear-gradient(90deg,var(--bar-color,var(--accent)),rgba(0,212,255,0.5)); transition:width 1s cubic-bezier(0.4,0,0.2,1); }
+  .model-auc { font-family:'Space Mono',monospace; font-size:13px; color:var(--text); width:52px; text-align:right; }
+
+  /* Inference */
+  .infer-form { display:flex; flex-direction:column; gap:12px; }
+  .infer-row { display:flex; gap:10px; align-items:center; }
+  .infer-label { font-size:12px; color:var(--text2); width:130px; flex-shrink:0; }
+  .infer-input { flex:1; background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:8px 12px; color:var(--text); font-family:'Space Mono',monospace; font-size:13px; outline:none; transition:border-color 0.2s; }
+  .infer-input:focus { border-color:var(--accent); }
+  .infer-input[type=range] { padding:4px 0; accent-color:var(--accent); }
+  .btn-infer { width:100%; padding:12px; background:linear-gradient(135deg,var(--accent),#0066cc); border:none; border-radius:8px; color:#000; font-weight:700; font-size:14px; font-family:'DM Sans',sans-serif; cursor:pointer; transition:all 0.2s; margin-top:4px; }
+  .btn-infer:hover { transform:translateY(-1px); box-shadow:0 6px 24px rgba(0,212,255,0.3); }
+  .btn-infer:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
+  .infer-result { background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:14px; font-family:'Space Mono',monospace; font-size:12px; line-height:1.8; display:none; margin-top:8px; }
+  .infer-result.visible { display:block; animation:fadeIn 0.3s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
+  .result-tier { font-size:18px; font-weight:700; margin-bottom:8px; }
+
+  /* LLM box */
+  .llm-box { background:var(--bg3); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:8px; padding:14px; font-size:13px; line-height:1.7; color:var(--text); font-family:'DM Sans',sans-serif; display:none; }
+  .llm-box.visible { display:block; animation:fadeIn 0.3s ease; }
+  .llm-label { font-family:'Space Mono',monospace; font-size:10px; color:var(--accent); letter-spacing:1px; text-transform:uppercase; margin-bottom:8px; }
+
+  /* Lookup */
+  .lookup-row { display:flex; gap:8px; margin-bottom:14px; }
+  .lookup-input { flex:1; background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:8px 12px; color:var(--text); font-family:'Space Mono',monospace; font-size:13px; outline:none; transition:border-color 0.2s; }
+  .lookup-input:focus { border-color:var(--accent); }
+  .btn-lookup { background:var(--accent); border:none; border-radius:6px; padding:8px 16px; color:#000; font-weight:700; font-size:12px; font-family:'Space Mono',monospace; cursor:pointer; letter-spacing:1px; }
+  .score-detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
+  .score-detail-item { background:var(--bg3); border-radius:6px; padding:8px 10px; }
+  .score-detail-key { font-size:10px; color:var(--text2); font-family:'Space Mono',monospace; margin-bottom:2px; }
+  .score-detail-val { font-size:14px; font-family:'Space Mono',monospace; }
+  .section-title { font-size:10px; color:var(--text2); font-family:'Space Mono',monospace; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:8px; }
+
+  /* Stream */
+  .stream-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .stream-metric { background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:14px; text-align:center; }
+  .stream-metric-val { font-family:'Space Mono',monospace; font-size:22px; font-weight:700; color:var(--accent); transition:all 0.3s; }
+  .stream-metric-label { font-size:11px; color:var(--text2); margin-top:3px; }
+
+  /* Misc */
+  .loading-msg { color:var(--text2); font-size:13px; padding:16px 0; text-align:center; }
+  .spinner { display:inline-block; width:16px; height:16px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 0.8s linear infinite; }
+  @keyframes spin { to{transform:rotate(360deg)} }
+  .error-msg { color:var(--critical); font-size:12px; padding:8px; }
+
+  footer { text-align:center; padding:24px; font-size:11px; color:var(--text2); border-top:1px solid var(--border); margin-top:8px; position:relative; z-index:1; }
+
+  /* Toast notification */
+  #toast { position:fixed; bottom:24px; right:24px; z-index:9999; display:flex; flex-direction:column; gap:8px; }
+  .toast-item { background:var(--bg2); border:1px solid var(--border); border-left:4px solid var(--item-color,var(--accent)); border-radius:8px; padding:12px 16px; font-size:13px; max-width:340px; animation:slideInRight 0.3s ease; box-shadow:0 4px 24px rgba(0,0,0,0.5); }
+  @keyframes slideInRight { from{opacity:0;transform:translateX(60px)} to{opacity:1;transform:none} }
+  .toast-tier { font-family:'Space Mono',monospace; font-size:10px; font-weight:700; margin-bottom:4px; color:var(--item-color); }
+  .toast-body { color:var(--text); line-height:1.4; }
+  .toast-sub { font-size:11px; color:var(--text2); margin-top:4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    FOREXGUARD
+  </div>
+  <div class="header-right">
+    <div class="ws-status">
+      <div class="ws-dot" id="wsDot"></div>
+      <span id="wsLabel">WS: Connecting…</span>
+    </div>
+    <span id="apiStatus" style="color:var(--text2)">API: —</span>
+    <span id="lastRefresh" style="font-size:11px">—</span>
+    <button class="btn-refresh" onclick="loadAll()">↻ Refresh</button>
+  </div>
+</header>
+
+<div id="toast"></div>
+
+<main>
+
+  <!-- STAT CARDS -->
+  <div class="stats-row" id="statsRow">
+    <div class="stat-card" style="--card-color:var(--text2)">
+      <div class="stat-label">Total Users</div>
+      <div class="stat-value" id="s-total">—</div>
+      <div class="stat-sub">monitored</div>
+    </div>
+    <div class="stat-card" style="--card-color:var(--critical)">
+      <div class="stat-label">Critical</div>
+      <div class="stat-value" id="s-critical">—</div>
+      <div class="stat-sub">immediate action</div>
+    </div>
+    <div class="stat-card" style="--card-color:var(--high)">
+      <div class="stat-label">High Risk</div>
+      <div class="stat-value" id="s-high">—</div>
+      <div class="stat-sub">review within 24h</div>
+    </div>
+    <div class="stat-card" style="--card-color:var(--medium)">
+      <div class="stat-label">Medium</div>
+      <div class="stat-value" id="s-medium">—</div>
+      <div class="stat-sub">enhanced monitoring</div>
+    </div>
+    <div class="stat-card" style="--card-color:var(--low)">
+      <div class="stat-label">Low / Clear</div>
+      <div class="stat-value" id="s-low">—</div>
+      <div class="stat-sub">passive monitor</div>
+    </div>
+    <div class="stat-card" style="--card-color:var(--accent)">
+      <div class="stat-label">RT Alerts</div>
+      <div class="stat-value" id="s-rt">0</div>
+      <div class="stat-sub">WebSocket fired</div>
+    </div>
+  </div>
+
+  <!-- ROW 2: Real-time feed + charts -->
+  <div class="grid-2">
+
+    <!-- LIVE ALERT FEED (WebSocket-powered) -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">⚡ <span>LIVE</span> ALERT FEED — WebSocket</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span id="feedCount" style="font-family:'Space Mono',monospace;font-size:11px;color:var(--accent)">0 alerts</span>
+          <button class="btn-lookup" onclick="clearFeed()" style="font-size:10px;padding:3px 8px;background:var(--border);color:var(--text2)">CLEAR</button>
+        </div>
+      </div>
+      <div class="panel-body" style="padding:12px">
+        <div class="rt-feed" id="rtFeed">
+          <div class="rt-empty" id="rtEmpty">Waiting for events… Stream simulator running?</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tier donut + Model AUC -->
+    <div style="display:flex;flex-direction:column;gap:20px">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">⬡ <span>TIER</span> DISTRIBUTION</div>
+        </div>
+        <div class="panel-body">
+          <div class="chart-wrap" style="height:180px">
+            <canvas id="tierChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">◈ <span>MODEL</span> PERFORMANCE</div>
+        </div>
+        <div class="panel-body" id="modelPerfPanel">
+          <div class="loading-msg"><div class="spinner"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROW 3: Score distribution + detection rate -->
+  <div class="grid-2">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">▦ <span>ENSEMBLE</span> SCORE DISTRIBUTION</div>
+      </div>
+      <div class="panel-body">
+        <div class="chart-wrap" style="height:200px">
+          <canvas id="scoreChart"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">◎ <span>ANOMALY</span> TYPES DETECTED</div>
+      </div>
+      <div class="panel-body" id="anomalyTypesPanel" style="max-height:260px;overflow-y:auto">
+        <div class="loading-msg"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROW 4: Alert table + Lookup -->
+  <div class="grid-31">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">▲ <span>FLAGGED</span> USERS</div>
+        <div style="display:flex;gap:8px">
+          <select id="tierFilter" onchange="loadAlerts()"
+            style="background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:4px 8px;color:var(--text);font-size:12px;cursor:pointer">
+            <option value="">ALL FLAGGED</option>
+            <option value="CRITICAL">CRITICAL</option>
+            <option value="HIGH">HIGH</option>
+            <option value="MEDIUM">MEDIUM</option>
+          </select>
+        </div>
+      </div>
+      <div class="panel-body" style="max-height:340px;overflow-y:auto">
+        <div class="alert-list" id="alertList">
+          <div class="loading-msg"><div class="spinner"></div> Loading alerts…</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">🔍 <span>USER</span> LOOKUP</div>
+      </div>
+      <div class="panel-body">
+        <div class="lookup-row">
+          <input class="lookup-input" id="lookupInput" placeholder="e.g. U0042" maxlength="12"
+            onkeydown="if(event.key==='Enter') lookupUser()">
+          <button class="btn-lookup" onclick="lookupUser()">SCORE</button>
+        </div>
+        <div id="lookupResult" style="display:none">
+          <div class="score-detail-grid" id="scoreDetailGrid"></div>
+          <div class="section-title">TOP SHAP DRIVERS</div>
+          <div id="shapDrivers" style="margin-bottom:12px"></div>
+          <div class="section-title">RISK DOMAIN SCORES</div>
+          <div id="domainScores" style="margin-bottom:12px"></div>
+          <button class="btn-infer" id="btnLLM" onclick="getLLM()">⚡ Generate AI Risk Summary</button>
+          <div class="llm-box" id="llmBox">
+            <div class="llm-label">AI Compliance Narrative</div>
+            <div id="llmText"></div>
+          </div>
+        </div>
+        <div id="lookupEmpty" style="color:var(--text2);font-size:13px;text-align:center;padding:20px">
+          Enter a user ID to see their full risk profile
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROW 5: Live inference + Stream status -->
+  <div class="grid-2">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">⚡ <span>LIVE</span> INFERENCE — NEW USER</div>
+      </div>
+      <div class="panel-body">
+        <div class="infer-form">
+          <div class="infer-row">
+            <div class="infer-label">IP Entropy</div>
+            <input type="range" class="infer-input" id="f-ip" min="0" max="5" step="0.1" value="1.2" oninput="updateSlider(this,'v-ip')">
+            <span id="v-ip" style="font-family:'Space Mono',monospace;font-size:12px;width:32px;color:var(--accent)">1.2</span>
+          </div>
+          <div class="infer-row">
+            <div class="infer-label">Login Fail Rate</div>
+            <input type="range" class="infer-input" id="f-lfr" min="0" max="1" step="0.05" value="0.1" oninput="updateSlider(this,'v-lfr')">
+            <span id="v-lfr" style="font-family:'Space Mono',monospace;font-size:12px;width:32px;color:var(--accent)">0.10</span>
+          </div>
+          <div class="infer-row">
+            <div class="infer-label">Volume Spike</div>
+            <input type="range" class="infer-input" id="f-vs" min="0" max="25" step="0.5" value="1.0" oninput="updateSlider(this,'v-vs')">
+            <span id="v-vs" style="font-family:'Space Mono',monospace;font-size:12px;width:32px;color:var(--accent)">1.0</span>
+          </div>
+          <div class="infer-row">
+            <div class="infer-label">Brute Force</div>
+            <input type="range" class="infer-input" id="f-bf" min="0" max="30" step="1" value="0" oninput="updateSlider(this,'v-bf')">
+            <span id="v-bf" style="font-family:'Space Mono',monospace;font-size:12px;width:32px;color:var(--accent)">0</span>
+          </div>
+          <div class="infer-row">
+            <div class="infer-label">Off-hours Ratio</div>
+            <input type="range" class="infer-input" id="f-oh" min="0" max="1" step="0.05" value="0.1" oninput="updateSlider(this,'v-oh')">
+            <span id="v-oh" style="font-family:'Space Mono',monospace;font-size:12px;width:32px;color:var(--accent)">0.10</span>
+          </div>
+          <div class="infer-row">
+            <div class="infer-label">Geo-impossible</div>
+            <input type="range" class="infer-input" id="f-geo" min="0" max="10" step="1" value="0" oninput="updateSlider(this,'v-geo')">
+            <span id="v-geo" style="font-family:'Space Mono',monospace;font-size:12px;width:32px;color:var(--accent)">0</span>
+          </div>
+          <button class="btn-infer" id="inferBtn" onclick="runInference()">▶ Score This User</button>
+        </div>
+        <div class="infer-result" id="inferResult"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">⟳ <span>STREAM</span> PIPELINE STATUS</div>
+        <button class="btn-lookup" onclick="loadStream()" style="font-size:11px;padding:4px 10px">REFRESH</button>
+      </div>
+      <div class="panel-body">
+        <div class="stream-grid" id="streamGrid">
+          <div class="loading-msg" style="grid-column:span 2"><div class="spinner"></div></div>
+        </div>
+        <div style="margin-top:16px">
+          <div class="section-title">WEBSOCKET CLIENTS</div>
+          <div id="wsClients" style="font-family:'Space Mono',monospace;font-size:13px;color:var(--accent);margin-bottom:12px">—</div>
+        </div>
+        <button class="btn-infer" onclick="simulateStream()" style="background:linear-gradient(135deg,var(--accent2),#cc4400)">
+          ▷ Simulate 200 Live Events
+        </button>
+        <div id="simResult" style="margin-top:8px;font-size:12px;color:var(--low);font-family:'Space Mono',monospace;display:none"></div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  FOREXGUARD v4.1 — IF + LOF + Staged Transformer (Bao et al. 2025) — Groq LLM — WebSocket Real-Time
+  <br><span style="color:var(--accent)">API: <span id="footerApi">http://localhost:8000</span></span>
+</footer>
+
+<script>
+// ════════════════════════════════════════════════════════
+// CONFIG — set API_BASE to your deployed URL if needed
+// ════════════════════════════════════════════════════════
+const API_BASE = window.location.hostname === 'localhost'
+  ? 'http://localhost:8000'
+  : window.location.origin;  // auto-detect when hosted on Render/HuggingFace
+
+const WS_BASE  = API_BASE.replace(/^http/, 'ws');
+document.getElementById('footerApi').textContent = API_BASE;
+
+let charts       = {};
+let currentUser  = null;
+let rtAlertCount = 0;
+let wsConn       = null;
+let wsReconnects = 0;
+
+// ════════════════════════════════════════════════════════
+// WEBSOCKET — real-time alert feed (RT-01)
+// ════════════════════════════════════════════════════════
+function connectWS() {
+  const dot   = document.getElementById('wsDot');
+  const label = document.getElementById('wsLabel');
+  dot.className = 'ws-dot connecting';
+  label.textContent = 'WS: Connecting…';
+
+  try {
+    wsConn = new WebSocket(`${WS_BASE}/ws/alerts`);
+  } catch(e) {
+    label.textContent = 'WS: Unavailable';
+    return;
+  }
+
+  wsConn.onopen = () => {
+    dot.className = 'ws-dot connected';
+    label.textContent = 'WS: Live';
+    wsReconnects = 0;
+    wsConn.send('ping');
+  };
+
+  wsConn.onmessage = (evt) => {
+    try {
+      const data = JSON.parse(evt.data);
+      if (data === 'pong' || data.type === 'heartbeat') return;
+
+      if (data.type === 'backlog' && Array.isArray(data.alerts)) {
+        data.alerts.forEach(a => addRtAlert(a));
+        return;
+      }
+      // Single alert object pushed by server
+      if (data.user_id) {
+        addRtAlert(data);
+        showToast(data);
+        // bump RT counter in stat card
+        rtAlertCount++;
+        document.getElementById('s-rt').textContent = rtAlertCount;
+        flashCard('s-rt');
+        // Auto-refresh stats and alert list so counts update in real time
+        // Debounced: don't refresh more than once per 3 seconds
+        if (!window._refreshPending) {
+          window._refreshPending = true;
+          setTimeout(() => {
+            loadSummary();
+            loadAlerts();
+            loadStream();
+            window._refreshPending = false;
+          }, 3000);
+        }
+      }
+    } catch(e) { console.warn('WS parse error:', e); }
+  };
+
+  wsConn.onerror = () => {
+    dot.className = 'ws-dot';
+    label.textContent = 'WS: Error';
+  };
+
+  wsConn.onclose = () => {
+    dot.className = 'ws-dot';
+    label.textContent = 'WS: Reconnecting…';
+    // Exponential back-off reconnect
+    const delay = Math.min(30000, 1000 * Math.pow(2, wsReconnects++));
+    setTimeout(connectWS, delay);
+  };
+}
+
+// Keep-alive ping every 25 seconds
+setInterval(() => {
+  if (wsConn && wsConn.readyState === WebSocket.OPEN) wsConn.send('ping');
+}, 25000);
+
+// ════════════════════════════════════════════════════════
+// RT FEED rendering
+// ════════════════════════════════════════════════════════
+const tierColor = t => ({CRITICAL:'#ff3b5c',HIGH:'#ff8c42',MEDIUM:'#ffd166',LOW:'#06d6a0'}[t]||'#7a9bbf');
+
+function addRtAlert(a) {
+  const feed  = document.getElementById('rtFeed');
+  const empty = document.getElementById('rtEmpty');
+  if (empty) empty.remove();
+
+  const col   = tierColor(a.tier);
+  const score = (parseFloat(a.score)||0).toFixed(3);
+  const feat  = (a.top_feature || '').replace(/_/g,' ');
+  const trig  = a.trigger === 'instant' ? '⚡ INSTANT' : '⧗ WINDOW';
+  const llm   = a.llm_summary || '';
+
+  const item = document.createElement('div');
+  item.className = 'rt-item';
+  item.style.setProperty('--item-color', col);
+  item.style.cursor = 'pointer';
+  item.onclick = () => { document.getElementById('lookupInput').value = a.user_id; lookupUser(); };
+  item.innerHTML = `
+    <span class="rt-tier">${a.tier}</span>
+    <span class="rt-uid">${a.user_id}</span>
+    <span class="rt-score">${score}</span>
+    <span class="rt-feature">${feat || '—'}</span>
+    <span class="rt-trigger">${trig}</span>
+  `;
+  if (llm) {
+    const llmEl = document.createElement('div');
+    llmEl.className = 'rt-llm';
+    llmEl.textContent = llm;
+    llmEl.title = 'Click user ID to see full profile';
+    item.appendChild(llmEl);
+  }
+
+  feed.insertBefore(item, feed.firstChild);
+  // Keep max 50 items
+  while (feed.children.length > 50) feed.removeChild(feed.lastChild);
+
+  document.getElementById('feedCount').textContent = `${feed.children.length} alerts`;
+}
+
+function clearFeed() {
+  const feed = document.getElementById('rtFeed');
+  feed.innerHTML = '<div class="rt-empty" id="rtEmpty">Feed cleared — waiting for new events…</div>';
+  document.getElementById('feedCount').textContent = '0 alerts';
+}
+
+// ════════════════════════════════════════════════════════
+// TOAST NOTIFICATIONS
+// ════════════════════════════════════════════════════════
+function showToast(a) {
+  if (!['CRITICAL','HIGH'].includes(a.tier)) return;
+  const col  = tierColor(a.tier);
+  const el   = document.createElement('div');
+  el.className = 'toast-item';
+  el.style.setProperty('--item-color', col);
+  el.innerHTML = `
+    <div class="toast-tier">${a.tier} ALERT — ${a.user_id}</div>
+    <div class="toast-body">Score: ${(parseFloat(a.score)||0).toFixed(3)} | ${(a.top_feature||'').replace(/_/g,' ')}</div>
+    ${a.llm_summary ? `<div class="toast-sub">${a.llm_summary.slice(0,120)}…</div>` : ''}
+  `;
+  el.onclick = () => { document.getElementById('lookupInput').value = a.user_id; lookupUser(); el.remove(); };
+  document.getElementById('toast').prepend(el);
+  setTimeout(() => el.remove(), 8000);
+}
+
+// ════════════════════════════════════════════════════════
+// UTILITIES
+// ════════════════════════════════════════════════════════
+const $   = id => document.getElementById(id);
+const api = async (path) => { const r = await fetch(API_BASE + path); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); };
+const post = async (path, body={}) => {
+  const r = await fetch(API_BASE + path, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+};
+
+function updateSlider(el, valId) {
+  $(valId).textContent = parseFloat(el.value).toFixed(el.step < 1 ? 2 : 0);
+}
+
+function fmtScore(s) {
+  const v = parseFloat(s)||0;
+  const col = v>0.7?'var(--critical)':v>0.5?'var(--high)':v>0.35?'var(--medium)':'var(--low)';
+  return `<span style="color:${col};font-weight:700">${v.toFixed(4)}</span>`;
+}
+
+function flashCard(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const card = el.closest('.stat-card');
+  if (card) { card.classList.remove('flash'); void card.offsetWidth; card.classList.add('flash'); }
+}
+
+// ════════════════════════════════════════════════════════
+// LOAD ALL
+// ════════════════════════════════════════════════════════
+async function loadAll() {
+  $('lastRefresh').textContent = new Date().toLocaleTimeString();
+  await Promise.allSettled([loadSummary(), loadAlerts(), loadStream(), loadModels()]);
+}
+
+// ════════════════════════════════════════════════════════
+// SUMMARY STATS + CHARTS
+// ════════════════════════════════════════════════════════
+async function loadSummary() {
+  try {
+    const d = await api('/alerts/summary/stats');
+    $('apiStatus').textContent = 'API: LIVE';
+    $('apiStatus').style.color = 'var(--low)';
+    $('s-total').textContent    = d.total_users || '—';
+    $('s-critical').textContent = d.critical_count || 0;
+    $('s-high').textContent     = d.high_count || 0;
+    $('s-medium').textContent   = d.medium_count || 0;
+    $('s-low').textContent      = d.low_count || 0;
+    drawTierDonut(d);
+    drawAnomalyTypes(d.top_anomaly_types || []);
+    await loadScoreDistribution();
+  } catch(e) {
+    $('apiStatus').textContent = 'API: OFFLINE';
+    $('apiStatus').style.color = 'var(--critical)';
+  }
+}
+
+function drawTierDonut(d) {
+  const ctx = $('tierChart').getContext('2d');
+  if (charts.tier) charts.tier.destroy();
+  charts.tier = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['CRITICAL','HIGH','MEDIUM','LOW'],
+      datasets: [{ data: [d.critical_count, d.high_count, d.medium_count, d.low_count],
+        backgroundColor: ['#ff3b5c','#ff8c42','#ffd166','#06d6a0'],
+        borderColor: '#0d1520', borderWidth: 3, hoverOffset: 6 }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false, cutout:'68%',
+      plugins: {
+        legend: { position:'right', labels:{ color:'#7a9bbf', font:{family:'Space Mono',size:10}, padding:12, boxWidth:10 } },
+        tooltip: { backgroundColor:'#0d1520', borderColor:'#1a2d45', borderWidth:1, titleColor:'#e8f4fd', bodyColor:'#7a9bbf',
+          callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw} users (${((ctx.raw/d.total_users)*100||0).toFixed(1)}%)` } }
+      }
+    }
+  });
+}
+
+async function loadScoreDistribution() {
+  try {
+    const alerts = await api('/alerts?per_page=100&sort_by=ensemble_score');
+    const low    = await api('/alerts?tier=LOW&per_page=100');
+    const scores = [...(alerts.results||[]), ...(low.results||[])].map(r => parseFloat(r.ensemble_score)||0);
+    const bins   = new Array(20).fill(0);
+    scores.forEach(s => { const b = Math.min(19, Math.floor(s*20)); bins[b]++; });
+    const labels = bins.map((_,i) => (i*0.05).toFixed(2));
+    const colors = bins.map((_,i) => { const s=i/20; return s>0.7?'rgba(255,59,92,0.8)':s>0.5?'rgba(255,140,66,0.8)':s>0.35?'rgba(255,209,102,0.8)':'rgba(6,214,160,0.8)'; });
+    const ctx = $('scoreChart').getContext('2d');
+    if (charts.score) charts.score.destroy();
+    charts.score = new Chart(ctx, {
+      type:'bar',
+      data:{ labels, datasets:[{ data:bins, backgroundColor:colors, borderRadius:3, borderSkipped:false }] },
+      options:{ responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false}, tooltip:{ backgroundColor:'#0d1520', borderColor:'#1a2d45', borderWidth:1, titleColor:'#e8f4fd', bodyColor:'#7a9bbf',
+          callbacks:{ title:ctx=>`Score: ${ctx[0].label}–${(parseFloat(ctx[0].label)+0.05).toFixed(2)}`, label:ctx=>` ${ctx.raw} users` } } },
+        scales:{ x:{grid:{color:'rgba(26,45,69,0.5)'},ticks:{color:'#7a9bbf',font:{size:9},maxTicksLimit:10}},
+                 y:{grid:{color:'rgba(26,45,69,0.5)'},ticks:{color:'#7a9bbf',font:{size:9}}} }
+      }
+    });
+  } catch(e) { console.warn('Score chart:', e); }
+}
+
+function drawAnomalyTypes(types) {
+  if (!types.length) { $('anomalyTypesPanel').innerHTML = '<div class="loading-msg">No anomaly type data</div>'; return; }
+  const max = Math.max(...types.map(t=>t.count));
+  $('anomalyTypesPanel').innerHTML = types.map(t => {
+    const pct = (t.count/max*100).toFixed(1);
+    return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(26,45,69,0.5)">
+      <div style="font-size:12px;color:var(--text2);width:170px;flex-shrink:0">${t.type.replace(/_/g,' ')}</div>
+      <div style="flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:var(--accent2);border-radius:3px;transition:width 1s ease"></div>
+      </div>
+      <div style="font-family:'Space Mono',monospace;font-size:12px;color:var(--text);width:28px;text-align:right">${t.count}</div>
+    </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════════════════════
+// ALERTS TABLE
+// ════════════════════════════════════════════════════════
+async function loadAlerts() {
+  const tier = $('tierFilter').value;
+  const url  = tier ? `/alerts?tier=${tier}&per_page=30&sort_by=ensemble_score`
+                    : `/alerts?per_page=30&sort_by=ensemble_score`;
+  try {
+    const d = await api(url);
+    $('alertList').innerHTML = (d.results||[]).map(r => {
+      const col  = tierColor(r.alert_tier);
+      const pct  = Math.min(100, (parseFloat(r.ensemble_score)||0)*100).toFixed(1);
+      const live = r.has_live_score ? '<span class="live-badge">LIVE</span>' : '';
+      return `
+        <div class="alert-item" style="--item-color:${col}" onclick="document.getElementById('lookupInput').value='${r.user_id}';lookupUser()">
+          <span class="alert-tier-badge">${r.alert_tier}</span>
+          <span class="alert-uid">${r.user_id}</span>
+          ${live}
+          <div class="alert-score-bar"><div class="alert-score-fill" style="width:${pct}%"></div></div>
+          <span class="alert-score-val">${(parseFloat(r.ensemble_score)||0).toFixed(3)}</span>
+          <span class="alert-shap">${r.shap_top1||'—'}</span>
+        </div>`;
+    }).join('') || '<div class="loading-msg">No alerts found</div>';
+  } catch(e) {
+    $('alertList').innerHTML = `<div class="error-msg">Error: ${e.message}</div>`;
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// MODELS
+// ════════════════════════════════════════════════════════
+async function loadModels() {
+  try {
+    const d = await api('/models/info');
+    const report = d.model_report || {};
+    const models = report.models || {};
+    const rows = [
+      { name:'Isolation Forest',  auc: (models.isolation_forest?.val_auc||0), col:'var(--low)' },
+      { name:'Local Outlier Factor', auc: (models.local_outlier_factor?.val_auc||0), col:'var(--medium)' },
+      { name:'Staged SW Transformer', auc: (models.staged_transformer?.val_auc||0), col:'var(--accent)' },
+      { name:'Ensemble (calibrated)', auc: (models.ensemble?.val_auc||0), col:'var(--critical)' },
+    ];
+    $('modelPerfPanel').innerHTML = rows.map(r => `
+      <div class="model-row">
+        <div class="model-name">${r.name}</div>
+        <div class="model-bar-wrap"><div class="model-bar-fill" style="width:${(r.auc*100).toFixed(1)}%;--bar-color:${r.col}"></div></div>
+        <div class="model-auc">${r.auc.toFixed(4)}</div>
+      </div>`).join('');
+  } catch(e) { console.warn('Model info:', e); }
+}
+
+// ════════════════════════════════════════════════════════
+// STREAM STATUS
+// ════════════════════════════════════════════════════════
+async function loadStream() {
+  try {
+    const d = await api('/stream/status');
+    $('streamGrid').innerHTML = [
+      { label:'Total Events',  val:(d.total_events||0).toLocaleString() },
+      { label:'Active Users',  val:(d.active_users||0).toLocaleString() },
+      { label:'Scored Users',  val:(d.scored_users||0).toLocaleString() },
+      { label:'Alert Queue',   val:(d.alert_queue_size||0).toLocaleString() },
+    ].map(m=>`<div class="stream-metric"><div class="stream-metric-val">${m.val}</div><div class="stream-metric-label">${m.label}</div></div>`).join('');
+    $('wsClients').textContent = `${d.ws_alert_clients||0} alert clients · ${d.ws_event_clients||0} event clients`;
+  } catch(e) {
+    $('streamGrid').innerHTML = `<div class="error-msg" style="grid-column:span 2">Stream offline: ${e.message}</div>`;
+  }
+}
+
+async function simulateStream() {
+  const btn = event.target;
+  btn.disabled=true; btn.textContent='Simulating…';
+  $('simResult').style.display='none';
+  try {
+    const d = await post('/stream/simulate?n_events=200&n_users=10');
+    $('simResult').textContent=`✓ ${d.simulated_events} events processed`;
+    $('simResult').style.color='var(--low)';
+    $('simResult').style.display='block';
+    await loadStream();
+  } catch(e) {
+    $('simResult').textContent=`Error: ${e.message}`;
+    $('simResult').style.color='var(--critical)';
+    $('simResult').style.display='block';
+  } finally { btn.disabled=false; btn.textContent='▷ Simulate 200 Live Events'; }
+}
+
+// ════════════════════════════════════════════════════════
+// USER LOOKUP
+// ════════════════════════════════════════════════════════
+async function lookupUser() {
+  const uid = $('lookupInput').value.trim();
+  if (!uid) return;
+  currentUser = uid;
+  $('lookupResult').style.display='none';
+  $('lookupEmpty').innerHTML='<div class="spinner"></div>';
+  try {
+    const d = await post(`/score?user_id=${uid}`);
+    $('scoreDetailGrid').innerHTML = [
+      { k:'Alert Tier',     v:`<span style="color:${tierColor(d.alert_tier)};font-weight:700">${d.alert_tier}</span>` },
+      { k:'Ensemble Score', v:fmtScore(d.ensemble_score) },
+      { k:'Calibrated',     v:fmtScore(d.calibrated_score) },
+      { k:'IF Score',       v:fmtScore(d.if_score) },
+      { k:'LOF Score',      v:fmtScore(d.lof_score) },
+      { k:'Transformer',    v:fmtScore(d.trans_score) },
+      { k:'Score Source',   v:`<span style="color:var(--accent);font-size:11px">${d.score_source||'precomputed'}</span>` },
+      { k:'7d Window',      v:fmtScore(d.window_7d_score) },
+    ].map(item=>`<div class="score-detail-item"><div class="score-detail-key">${item.k}</div><div class="score-detail-val">${item.v}</div></div>`).join('');
+
+    const shapFeats = [{f:d.shap_top1_feature,v:d.shap_top1_value},{f:d.shap_top2_feature,v:d.shap_top2_value},{f:d.shap_top3_feature,v:d.shap_top3_value}].filter(x=>x.f&&x.f!=='nan');
+    $('shapDrivers').innerHTML = shapFeats.length ? shapFeats.map((s,i)=>{
+      const val=parseFloat(s.v)||0; const col2=val>0?'var(--critical)':'var(--low)'; const w=Math.min(100,Math.abs(val)*200);
+      return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:11px;color:var(--text2);width:16px">#${i+1}</div>
+        <div style="font-size:12px;flex:1;color:var(--text)">${s.f.replace(/_/g,' ')}</div>
+        <div style="height:4px;width:60px;background:var(--border);border-radius:2px;overflow:hidden">
+          <div style="height:100%;width:${w}%;background:${col2};border-radius:2px"></div></div>
+        <div style="font-family:'Space Mono',monospace;font-size:11px;color:${col2};width:50px;text-align:right">${val>0?'+':''}${val.toFixed(4)}</div>
+      </div>`;}).join('')
+    : '<div style="color:var(--text2);font-size:12px">SHAP data unavailable</div>';
+
+    const domains = [{k:'Composite',v:d.composite_risk_score,c:'var(--accent)'},{k:'Financial',v:d.financial_risk_score,c:'var(--high)'},{k:'Trading',v:d.trading_risk_score,c:'var(--medium)'},{k:'Network',v:d.network_risk_score,c:'var(--critical)'}].filter(x=>x.v!=null&&!isNaN(x.v));
+    $('domainScores').innerHTML = domains.map(dom=>{
+      const pct=Math.min(100,(parseFloat(dom.v)||0)*100);
+      return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0">
+        <div style="font-size:11px;color:var(--text2);width:70px">${dom.k}</div>
+        <div style="flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden">
+          <div style="height:100%;width:${pct.toFixed(1)}%;background:${dom.c};border-radius:3px;transition:width 0.8s ease"></div></div>
+        <div style="font-family:'Space Mono',monospace;font-size:11px;color:${dom.c};width:44px;text-align:right">${(parseFloat(dom.v)||0).toFixed(3)}</div>
+      </div>`;}).join('');
+
+    if (d.llm_risk_summary && !d.llm_risk_summary.includes('error')) {
+      $('llmText').textContent = d.llm_risk_summary;
+      $('llmBox').classList.add('visible');
+      $('btnLLM').textContent = '↻ Regenerate AI Summary';
+    } else {
+      $('llmBox').classList.remove('visible');
+      $('btnLLM').textContent = '⚡ Generate AI Risk Summary';
+    }
+    $('lookupEmpty').style.display='none';
+    $('lookupResult').style.display='block';
+  } catch(e) {
+    $('lookupEmpty').innerHTML=`<div class="error-msg">User not found: ${e.message}</div>`;
+  }
+}
+
+async function getLLM() {
+  const uid = currentUser; if (!uid) return;
+  $('btnLLM').disabled=true; $('btnLLM').innerHTML='<span class="spinner"></span> Generating…';
+  $('llmBox').classList.remove('visible');
+  try {
+    const d = await post(`/score?user_id=${uid}&generate_llm=true`);
+    if (d.llm_risk_summary) { $('llmText').textContent=d.llm_risk_summary; $('llmBox').classList.add('visible'); }
+  } catch(e) { $('llmText').textContent='Failed to generate summary.'; $('llmBox').classList.add('visible'); }
+  finally { $('btnLLM').disabled=false; $('btnLLM').textContent='↻ Regenerate AI Summary'; }
+}
+
+// ════════════════════════════════════════════════════════
+// LIVE INFERENCE
+// ════════════════════════════════════════════════════════
+async function runInference() {
+  const btn = $('inferBtn'); btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Scoring…';
+  const features = {
+    ip_entropy:                    parseFloat($('f-ip').value),
+    login_failure_rate:            parseFloat($('f-lfr').value),
+    volume_spike_ratio:            parseFloat($('f-vs').value),
+    brute_force_max_burst:         parseFloat($('f-bf').value),
+    offhours_login_ratio:          parseFloat($('f-oh').value),
+    geo_impossible_login_count:    parseFloat($('f-geo').value),
+  };
+  try {
+    const d = await post('/predict', { user_id:'LIVE_TEST', features });
+    const tier=d.alert_tier||'UNKNOWN'; const col=tierColor(tier); const score=parseFloat(d.ensemble_score)||0;
+    $('inferResult').innerHTML = `
+      <div class="result-tier" style="color:${col}">${tier} RISK</div>
+      <div style="margin-bottom:10px;font-size:13px">
+        Ensemble: <span style="color:${col}">${score.toFixed(4)}</span> &nbsp;
+        IF: ${(d.if_score||0).toFixed(4)} &nbsp; LOF: ${(d.lof_score||0).toFixed(4)}
+      </div>
+      <div style="color:var(--text2);font-size:11px;margin-bottom:8px">TOP CONTRIBUTING FEATURES</div>
+      ${(d.top_features||[]).slice(0,3).map(f=>`
+        <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border);font-size:11px">
+          <span style="color:var(--text2)">${f.feature.replace(/_/g,' ')}</span>
+          <span style="color:var(--accent);font-family:'Space Mono',monospace">${(f.scaled_value||0).toFixed(4)}</span>
+        </div>`).join('')}
+      ${d.llm_summary?`<div class="llm-box visible" style="margin-top:10px"><div class="llm-label">AI NARRATIVE</div>${d.llm_summary}</div>`:''}
+    `;
+    $('inferResult').classList.add('visible');
+  } catch(e) {
+    $('inferResult').innerHTML=`<div class="error-msg">Error: ${e.message}</div>`;
+    $('inferResult').classList.add('visible');
+  } finally { btn.disabled=false; btn.textContent='▶ Score This User'; }
+}
+
+// ════════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════════
+connectWS();
+loadAll();
+// Polling fallback (WS handles real-time; these are safety nets)
+setInterval(loadStream, 15000);   // stream status every 15s
+setInterval(loadSummary, 30000);  // stat cards every 30s
+setInterval(loadAlerts, 30000);   // alert list every 30s
+</script>
+</body>
+</html>
