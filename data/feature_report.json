@@ -1,0 +1,358 @@
+{
+  "feature_count": 97,
+  "user_count": 500,
+  "scale_cols": [
+    "login_count",
+    "login_failed_count",
+    "login_failure_rate",
+    "unique_ip_count",
+    "ip_entropy",
+    "offhours_login_count",
+    "offhours_login_ratio",
+    "multi_ip_day_count",
+    "brute_force_max_burst",
+    "unique_device_count",
+    "geo_impossible_login_count",
+    "total_deposits",
+    "total_withdrawals",
+    "deposit_count",
+    "withdrawal_count",
+    "deposit_withdrawal_ratio",
+    "small_deposit_count",
+    "small_deposit_ratio",
+    "deposit_amount_std",
+    "deposit_amount_cv",
+    "dormant_withdrawal_flag",
+    "has_dep_with_cycle",
+    "deposit_to_withdrawal_mean_h",
+    "deposit_to_withdrawal_min_h",
+    "kyc_before_withdrawal_flag",
+    "bonus_abuse_flag",
+    "trade_count",
+    "mean_volume",
+    "std_volume",
+    "max_volume",
+    "volume_spike_ratio",
+    "mean_lot_size",
+    "max_lot_size",
+    "mean_trade_duration_s",
+    "min_trade_duration_s",
+    "total_pnl",
+    "mean_pnl",
+    "pnl_std",
+    "pnl_sharpe",
+    "win_rate",
+    "latency_arb_trade_count",
+    "latency_arb_ratio",
+    "unique_instruments",
+    "instrument_gini",
+    "top_instrument_ratio",
+    "direction_imbalance",
+    "trades_per_day",
+    "volume_pop_zscore",
+    "lot_pop_zscore",
+    "duration_pop_zscore",
+    "news_window_trade_ratio",
+    "mean_margin_used",
+    "max_margin_used",
+    "mean_session_duration",
+    "std_session_duration",
+    "min_session_duration",
+    "bot_speed_pageview_count",
+    "bot_speed_ratio",
+    "event_type_entropy",
+    "support_ticket_count",
+    "account_modify_count",
+    "password_change_count",
+    "event_bigram_entropy",
+    "rolling_7d_volume_zscore",
+    "rolling_30d_volume_zscore",
+    "rolling_7d_trade_count_zscore",
+    "rolling_7d_pnl_zscore",
+    "rolling_data_coverage_days",
+    "rolling_7d_deposit_zscore",
+    "rolling_7d_login_count_zscore",
+    "rolling_7d_withdrawal_zscore",
+    "mean_inter_login_hours",
+    "std_inter_login_hours",
+    "min_inter_login_sec",
+    "login_to_trade_mean_min",
+    "fingerprint_entropy",
+    "fingerprint_mismatch_count",
+    "device_rotation_rate",
+    "ip_hub_score",
+    "device_sharing_score",
+    "max_users_per_shared_ip",
+    "graph_component_size",
+    "graph_betweenness",
+    "sync_trade_count",
+    "collusion_risk_score",
+    "concept_drift_volume_ratio",
+    "concept_drift_trade_ratio",
+    "trade_dow_gini",
+    "trade_hour_entropy",
+    "portal_hour_entropy",
+    "login_risk_score",
+    "financial_risk_score",
+    "trading_risk_score",
+    "network_risk_score",
+    "composite_risk_score"
+  ],
+  "fixes_applied": [],
+  "top_features": {
+    "composite_risk_score": {
+      "mean_normal": 0.1234,
+      "mean_anomalous": 0.2015,
+      "correlation": 0.5635,
+      "abs_corr": 0.5635
+    },
+    "deposit_amount_cv": {
+      "mean_normal": 0.2665,
+      "mean_anomalous": 0.3673,
+      "correlation": 0.2182,
+      "abs_corr": 0.2182
+    },
+    "brute_force_max_burst": {
+      "mean_normal": 0.9068,
+      "mean_anomalous": 2.037,
+      "correlation": 0.2106,
+      "abs_corr": 0.2106
+    },
+    "ip_entropy": {
+      "mean_normal": 0.8775,
+      "mean_anomalous": 1.3087,
+      "correlation": 0.2006,
+      "abs_corr": 0.2006
+    },
+    "dormant_withdrawal_flag": {
+      "mean_normal": 0.0,
+      "mean_anomalous": 0.0,
+      "correlation": NaN,
+      "abs_corr": NaN
+    },
+    "trading_risk_score": {
+      "mean_normal": 0.1847,
+      "mean_anomalous": 0.2386,
+      "correlation": 0.3787,
+      "abs_corr": 0.3787
+    },
+    "network_risk_score": {
+      "mean_normal": 0.0301,
+      "mean_anomalous": 0.1679,
+      "correlation": 0.3373,
+      "abs_corr": 0.3373
+    },
+    "ip_hub_score": {
+      "mean_normal": 0.0,
+      "mean_anomalous": 1.3333,
+      "correlation": 0.3356,
+      "abs_corr": 0.3356
+    },
+    "max_users_per_shared_ip": {
+      "mean_normal": 1.0,
+      "mean_anomalous": 2.3333,
+      "correlation": 0.3356,
+      "abs_corr": 0.3356
+    },
+    "concept_drift_volume_ratio": {
+      "mean_normal": 1.0035,
+      "mean_anomalous": 1.172,
+      "correlation": 0.2952,
+      "abs_corr": 0.2952
+    },
+    "volume_spike_ratio": {
+      "mean_normal": 1.8253,
+      "mean_anomalous": 2.494,
+      "correlation": 0.2891,
+      "abs_corr": 0.2891
+    },
+    "financial_risk_score": {
+      "mean_normal": 0.1657,
+      "mean_anomalous": 0.2193,
+      "correlation": 0.2229,
+      "abs_corr": 0.2229
+    },
+    "unique_ip_count": {
+      "mean_normal": 2.0411,
+      "mean_anomalous": 13.3333,
+      "correlation": 0.2152,
+      "abs_corr": 0.2152
+    },
+    "login_risk_score": {
+      "mean_normal": 0.1174,
+      "mean_anomalous": 0.1674,
+      "correlation": 0.1968,
+      "abs_corr": 0.1968
+    },
+    "login_failed_count": {
+      "mean_normal": 2.4712,
+      "mean_anomalous": 12.0741,
+      "correlation": 0.196,
+      "abs_corr": 0.196
+    },
+    "event_type_entropy": {
+      "mean_normal": 3.1733,
+      "mean_anomalous": 3.0751,
+      "correlation": -0.1953,
+      "abs_corr": 0.1953
+    },
+    "total_pnl": {
+      "mean_normal": -111.2975,
+      "mean_anomalous": 1231.7439,
+      "correlation": 0.1926,
+      "abs_corr": 0.1926
+    },
+    "fingerprint_mismatch_count": {
+      "mean_normal": 1.0,
+      "mean_anomalous": 1.1111,
+      "correlation": 0.1877,
+      "abs_corr": 0.1877
+    },
+    "event_bigram_entropy": {
+      "mean_normal": 5.3655,
+      "mean_anomalous": 5.1964,
+      "correlation": -0.1872,
+      "abs_corr": 0.1872
+    },
+    "fingerprint_entropy": {
+      "mean_normal": -0.0,
+      "mean_anomalous": 0.0109,
+      "correlation": 0.187,
+      "abs_corr": 0.187
+    }
+  },
+  "feature_groups": {
+    "A_login_access": [
+      "login_count",
+      "login_failed_count",
+      "login_failure_rate",
+      "unique_ip_count",
+      "ip_entropy",
+      "offhours_login_count",
+      "offhours_login_ratio",
+      "multi_ip_day_count",
+      "brute_force_max_burst",
+      "geo_impossible_login_count",
+      "rolling_7d_login_count_zscore",
+      "mean_inter_login_hours",
+      "std_inter_login_hours",
+      "min_inter_login_sec",
+      "login_to_trade_mean_min",
+      "ip_hub_score",
+      "login_risk_score"
+    ],
+    "B_financial": [
+      "total_deposits",
+      "total_withdrawals",
+      "deposit_count",
+      "withdrawal_count",
+      "deposit_withdrawal_ratio",
+      "small_deposit_count",
+      "small_deposit_ratio",
+      "deposit_amount_std",
+      "deposit_amount_cv",
+      "dormant_withdrawal_flag",
+      "has_dep_with_cycle",
+      "deposit_to_withdrawal_mean_h",
+      "deposit_to_withdrawal_min_h",
+      "kyc_before_withdrawal_flag",
+      "bonus_abuse_flag",
+      "rolling_7d_deposit_zscore",
+      "rolling_7d_withdrawal_zscore"
+    ],
+    "C_trading": [
+      "trade_count",
+      "mean_volume",
+      "std_volume",
+      "max_volume",
+      "volume_spike_ratio",
+      "mean_lot_size",
+      "max_lot_size",
+      "total_pnl",
+      "mean_pnl",
+      "pnl_std",
+      "pnl_sharpe",
+      "win_rate",
+      "latency_arb_trade_count",
+      "latency_arb_ratio",
+      "unique_instruments",
+      "instrument_gini",
+      "top_instrument_ratio",
+      "direction_imbalance",
+      "trades_per_day",
+      "volume_pop_zscore",
+      "lot_pop_zscore",
+      "mean_margin_used",
+      "max_margin_used",
+      "rolling_7d_volume_zscore",
+      "rolling_30d_volume_zscore",
+      "rolling_7d_trade_count_zscore",
+      "rolling_7d_pnl_zscore",
+      "sync_trade_count",
+      "concept_drift_volume_ratio"
+    ],
+    "D_session_behaviour": [
+      "mean_session_duration",
+      "std_session_duration",
+      "min_session_duration",
+      "bot_speed_pageview_count",
+      "bot_speed_ratio",
+      "event_type_entropy",
+      "support_ticket_count",
+      "account_modify_count",
+      "password_change_count",
+      "event_bigram_entropy"
+    ],
+    "E_rolling_windows": [
+      "rolling_7d_volume_zscore",
+      "rolling_30d_volume_zscore",
+      "rolling_7d_trade_count_zscore",
+      "rolling_7d_pnl_zscore",
+      "rolling_data_coverage_days",
+      "rolling_7d_deposit_zscore",
+      "rolling_7d_login_count_zscore",
+      "rolling_7d_withdrawal_zscore"
+    ],
+    "F_inter_event_deltas": [
+      "mean_inter_login_hours",
+      "std_inter_login_hours",
+      "min_inter_login_sec",
+      "login_to_trade_mean_min"
+    ],
+    "G_device_fingerprint": [
+      "unique_device_count",
+      "fingerprint_entropy",
+      "fingerprint_mismatch_count",
+      "device_rotation_rate"
+    ],
+    "H_graph_network": [
+      "ip_hub_score",
+      "device_sharing_score",
+      "max_users_per_shared_ip",
+      "graph_component_size",
+      "graph_betweenness",
+      "sync_trade_count",
+      "collusion_risk_score"
+    ],
+    "I_temporal": [
+      "news_window_trade_ratio",
+      "concept_drift_volume_ratio",
+      "concept_drift_trade_ratio",
+      "trade_dow_gini",
+      "trade_hour_entropy",
+      "portal_hour_entropy"
+    ],
+    "J_composite_scores": [
+      "collusion_risk_score",
+      "login_risk_score",
+      "financial_risk_score",
+      "trading_risk_score",
+      "network_risk_score",
+      "composite_risk_score"
+    ],
+    "K_user_activity": [
+      "user_total_events",
+      "user_activity_score"
+    ]
+  }
+}
